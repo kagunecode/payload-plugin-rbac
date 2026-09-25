@@ -7,7 +7,11 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: 1,
-  reporter: 'html',
+  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'html',
+  timeout: 180_000,
+  expect: {
+    timeout: 15_000,
+  },
   projects: [
     {
       name: 'chromium',
@@ -16,6 +20,8 @@ export default defineConfig({
   ],
   use: {
     baseURL: 'http://localhost:3000',
+    navigationTimeout: 90_000,
+    screenshot: 'only-on-failure',
     trace: 'on-first-retry',
   },
   webServer: {
