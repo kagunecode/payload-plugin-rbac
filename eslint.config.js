@@ -1,11 +1,10 @@
-// @ts-check
-
 import payloadEsLintConfig from '@payloadcms/eslint-config'
 
 export const defaultESLintIgnores = [
   '**/.temp',
-  '**/.*', // ignore all dotfiles
+  '**/.*',
   '**/.git',
+  '**/.next/',
   '**/.hg',
   '**/.pnp.*',
   '**/.svn',
@@ -20,12 +19,18 @@ export const defaultESLintIgnores = [
   '**/build/',
   '**/node_modules/',
   '**/temp/',
+  '**/test-results/',
+  '**/playwright-report/',
+  '**/dev/media/',
+  '**/dev/app/(payload)/',
 ]
 
 export default [
+  { ignores: defaultESLintIgnores },
   ...payloadEsLintConfig,
   {
     rules: {
+      '@typescript-eslint/no-unnecessary-type-assertion': 'off',
       'no-restricted-exports': 'off',
     },
   },
@@ -36,9 +41,8 @@ export default [
         ecmaVersion: 'latest',
         projectService: {
           maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 40,
-          allowDefaultProject: ['scripts/*.ts', '*.js', '*.mjs', '*.spec.ts', '*.d.ts'],
+          allowDefaultProject: ['scripts/*.ts', 'scripts/*.mjs', '*.js', '*.mjs', '*.spec.ts', '*.d.ts'],
         },
-        // projectService: true,
         tsconfigRootDir: import.meta.dirname,
       },
     },

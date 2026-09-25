@@ -1,8 +1,26 @@
 {
-  "name": "rbac",
-  "version": "1.0.0",
-  "description": "A blank template to get started with Payload 3.0",
+  "name": "@crz-studio/payload-rbac",
+  "version": "0.0.0-semantically-released",
+  "description": "Role-based access control for Payload CMS with auto-generated CRUD permissions for every collection and global.",
+  "keywords": [
+    "payload",
+    "payload-plugin",
+    "payloadcms",
+    "rbac",
+    "roles",
+    "permissions",
+    "access-control"
+  ],
+  "homepage": "https://github.com/crz-studio/payload-rbac#readme",
+  "bugs": {
+    "url": "https://github.com/crz-studio/payload-rbac/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crz-studio/payload-rbac.git"
+  },
   "license": "MIT",
+  "author": "CRZ Studio",
   "type": "module",
   "exports": {
     ".": {
@@ -14,22 +32,20 @@
       "import": "./src/exports/client.ts",
       "types": "./src/exports/client.ts",
       "default": "./src/exports/client.ts"
-    },
-    "./rsc": {
-      "import": "./src/exports/rsc.ts",
-      "types": "./src/exports/rsc.ts",
-      "default": "./src/exports/rsc.ts"
     }
   },
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "README.md"
   ],
   "scripts": {
     "build": "pnpm copyfiles && pnpm build:types && pnpm build:swc",
     "build:swc": "swc ./src -d ./dist --config-file .swcrc --strip-leading-paths",
     "build:types": "tsc --outDir dist --rootDir ./src",
+    "check:comments": "node scripts/check-comments.mjs",
     "clean": "rimraf {dist,*.tsbuildinfo}",
     "copyfiles": "copyfiles -u 1 \"src/**/*.{html,css,scss,ttf,woff,woff2,eot,svg,jpg,png,json}\" dist/",
     "dev": "next dev dev --turbo",
@@ -42,7 +58,10 @@
     "lint:fix": "eslint ./src --fix",
     "test": "pnpm test:int && pnpm test:e2e",
     "test:e2e": "playwright test",
-    "test:int": "vitest"
+    "test:int": "vitest",
+    "test:int:postgres": "cross-env DATABASE_ADAPTER=postgres vitest",
+    "test:int:sqlite": "cross-env DATABASE_ADAPTER=sqlite vitest",
+    "typecheck": "tsc --noEmit -p dev/tsconfig.json"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -54,6 +73,7 @@
     "@payloadcms/richtext-lexical": "3.90.0",
     "@payloadcms/ui": "3.90.0",
     "@playwright/test": "1.58.2",
+    "@semantic-release/exec": "^7.1.0",
     "@swc-node/register": "1.10.9",
     "@swc/cli": "0.6.0",
     "@types/node": "22.19.9",
@@ -73,6 +93,7 @@
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "rimraf": "3.0.2",
+    "semantic-release": "^25.0.9",
     "sharp": "0.35.4",
     "sort-package-json": "^2.10.0",
     "typescript": "5.7.3",
@@ -80,13 +101,18 @@
     "vitest": "4.0.18"
   },
   "peerDependencies": {
-    "payload": "^3.90.0"
+    "@payloadcms/ui": "^3.90.0",
+    "payload": "^3.90.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
+  "packageManager": "pnpm@10.34.5",
   "engines": {
     "node": "^18.20.2 || >=20.9.0",
     "pnpm": "^9 || ^10 || ^11"
   },
   "publishConfig": {
+    "access": "public",
     "exports": {
       ".": {
         "import": "./dist/index.js",
@@ -97,14 +123,10 @@
         "import": "./dist/exports/client.js",
         "types": "./dist/exports/client.d.ts",
         "default": "./dist/exports/client.js"
-      },
-      "./rsc": {
-        "import": "./dist/exports/rsc.js",
-        "types": "./dist/exports/rsc.d.ts",
-        "default": "./dist/exports/rsc.js"
       }
     },
     "main": "./dist/index.js",
+    "provenance": true,
     "types": "./dist/index.d.ts"
   },
   "pnpm": {
@@ -114,6 +136,5 @@
       "unrs-resolver"
     ]
   },
-  "registry": "https://registry.npmjs.org/",
-  "dependencies": {}
+  "registry": "https://registry.npmjs.org/"
 }
