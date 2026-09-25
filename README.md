@@ -1,218 +1,281 @@
-# Payload Plugin Template
+# @crz-studio/payload-rbac
 
-A template repo to create a [Payload CMS](https://payloadcms.com) plugin.
+Role-based access control for the [Payload CMS](https://payloadcms.com) admin panel. There are no permission documents to seed.
 
-Payload is built with a robust infrastructure intended to support Plugins with ease. This provides a simple, modular, and reusable way for developers to extend the core capabilities of Payload.
+- **Zero setup permissions.** Every collection and global in your config gets `create`, `read`, `update` and `delete` permissions automatically. This includes collections you add later.
+- **Roles collection with a permissions matrix.** Grants are edited in a table with row, column and section toggles, a filter, and grant/revoke all.
+- **First user becomes Super Admin.** The first account created through the admin panel gets a protected Super Admin role that bypasses every check.
+- **Escalation protection.** Users can only assign roles, or grant permissions, that they already have.
+- **Safe defaults.** Anonymous visitors and users from other auth collections never inherit admin permissions.
 
-To build your own Payload plugin, all you need is:
+## Contents
 
-- An understanding of the basic Payload concepts
-- And some JavaScript/Typescript experience
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [How it works](#how-it-works)
+- [Options](#options)
+- [Migrations](#migrations)
+- [Adding RBAC to an existing project](#adding-rbac-to-an-existing-project)
+- [Using permissions in your own code](#using-permissions-in-your-own-code)
+- [Security notes](#security-notes)
+- [Contributing and releases](#contributing-and-releases)
 
-## Background
+## Requirements
 
-Here is a short recap on how to integrate plugins with Payload, to learn more visit the [plugin overview page](https://payloadcms.com/docs/plugins/overview).
+- Payload `^3.90.0`
+- React `^19`
+- Any official Payload database adapter. The plugin only uses the Payload Local API, so it has no adapter-specific code. CI tests it against MongoDB, Postgres and SQLite.
 
-### How to install a plugin
+## Installation
 
-To install any plugin, simply add it to your payload.config() in the Plugin array.
+```bash
+pnpm add @crz-studio/payload-rbac
+```
 
 ```ts
-import myPlugin from 'my-plugin'
+import { buildConfig } from 'payload'
+import { rbac } from '@crz-studio/payload-rbac'
 
-export const config = buildConfig({
+export default buildConfig({
+  collections: [Users, Posts, Media],
   plugins: [
-    // You can pass options to the plugin
-    myPlugin({
-      enabled: true,
-    }),
+    seoPlugin(),
+    rbac(),
   ],
 })
 ```
 
-### Initialization
+Then regenerate the import map, because the plugin registers a custom admin component:
 
-The initialization process goes in the following order:
-
-1. Incoming config is validated
-2. **Plugins execute**
-3. Default options are integrated
-4. Sanitization cleans and validates data
-5. Final config gets initialized
-
-## Building the Plugin
-
-When you build a plugin, you are purely building a feature for your project and then abstracting it outside of the project.
-
-### Template Files
-
-In the Payload [plugin template](https://github.com/payloadcms/payload/tree/3.x/templates/plugin), you will see a common file structure that is used across all plugins:
-
-1. root folder
-2. /src folder
-3. /dev folder
-
-#### Root
-
-In the root folder, you will see various files that relate to the configuration of the plugin. We set up our environment in a similar manner in Payload core and across other projects, so hopefully these will look familiar:
-
-- **README**.md\* - This contains instructions on how to use the template. When you are ready, update this to contain instructions on how to use your Plugin.
-- **package**.json\* - Contains necessary scripts and dependencies. Overwrite the metadata in this file to describe your Plugin.
-- .**eslint**.config.js - Eslint configuration for reporting on problematic patterns.
-- .**gitignore** - List specific untracked files to omit from Git.
-- .**prettierrc**.json - Configuration for Prettier code formatting.
-- **tsconfig**.json - Configures the compiler options for TypeScript
-- .**swcrc** - Configuration for SWC, a fast compiler that transpiles and bundles TypeScript.
-- **vitest**.config.js - Config file for Vitest, defining how tests are run and how modules are resolved
-
-**IMPORTANT\***: You will need to modify these files.
-
-#### Dev
-
-In the dev folder, you’ll find a basic payload project, created with `npx create-payload-app` and the blank template.
-
-**IMPORTANT**: Make a copy of the `.env.example` file and rename it to `.env`. Update the `DATABASE_URL` to match the database you are using and your plugin name. Update `PAYLOAD_SECRET` to a unique string.
-**You will not be able to run `pnpm/yarn dev` until you have created this `.env` file.**
-
-`myPlugin` has already been added to the `payload.config()` file in this project.
-
-```ts
-plugins: [
-  myPlugin({
-    collections: {
-      posts: true,
-    },
-  }),
-]
+```bash
+pnpm payload generate:importmap
 ```
 
-Later when you rename the plugin or add additional options, **make sure to update it here**.
+That is all. Start the app, create the first user and they become Super Admin. Open **Roles** to create more roles.
 
-You may wish to add collections or expand the test project depending on the purpose of your plugin. Just make sure to keep this dev environment as simplified as possible - users should be able to install your plugin without additional configuration required.
+> Place `rbac()` **last** in the `plugins` array. That way it also governs collections added by other plugins, such as form builder, SEO or redirects.
 
-When you’re ready to start development, initiate the project with `pnpm/npm/yarn dev` and pull up [http://localhost:3000](http://localhost:3000) in your browser.
+## How it works
 
-#### Src
+### Roles and the permissions matrix
 
-Now that we have our environment setup and we have a dev project ready to - it’s time to build the plugin!
+The plugin adds a `roles` collection with these fields:
 
-**index.ts**
+| Field          | Type     | Purpose                                                               |
+| -------------- | -------- | --------------------------------------------------------------------- |
+| `name`         | text     | Unique role name.                                                     |
+| `description`  | textarea | Optional description.                                                 |
+| `isSuperAdmin` | checkbox | Read-only. Only set on the plugin-managed Super Admin role.           |
+| `permissions`  | json     | Grants such as `{ collections: { posts: { read: true } }, globals: {} }`. |
 
-The essence of a Payload plugin is simply to extend the payload config - and that is exactly what we are doing in this file.
+It also adds a `roles` relationship field (`hasMany`) to your users collection. A user's permissions are the **union** of all their roles.
 
-```ts
-export const myPlugin =
-  (pluginOptions: MyPluginConfig) =>
-  (config: Config): Config => {
-    // do cool stuff with the config here
+Permissions are not stored as documents. They are derived from your Payload config when the app boots, so:
 
-    return config
-  }
-```
+- a new collection appears in the matrix automatically, with nothing granted;
+- permissions for removed or excluded collections are ignored, and stripped the next time the role is saved;
+- adding collections never needs a migration.
 
-First, we receive the existing payload config along with any plugin options.
+Globals only support `read` and `update`, so their `create` and `delete` cells show as not applicable.
 
-From here, you can extend the config as you wish.
+### Who is governed
 
-Finally, you return the config and that is it!
+Payload access functions protect the admin panel **and** the REST, GraphQL and Local APIs (when `overrideAccess: false`). This plugin focuses on admin users. For each governed collection and global it wraps the access functions like this:
 
-##### Spread Syntax
+| Request made by                                                    | Result                                                                        |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| A Super Admin                                                      | Always allowed.                                                               |
+| A user from the RBAC users collection                              | Allowed only when one of their roles grants the operation.                    |
+| Anyone else (anonymous, or a user from another auth collection such as `customers`) | Your original access function for that operation is used. If there is none, the request is **denied**. |
 
-Spread syntax (or the spread operator) is a feature in JavaScript that uses the dot notation **(...)** to spread elements from arrays, strings, or objects into various contexts.
-
-We are going to use spread syntax to allow us to add data to existing arrays without losing the existing data. It is crucial to spread the existing data correctly – else this can cause adverse behavior and conflicts with Payload config and other plugins.
-
-Let’s say you want to build a plugin that adds a new collection:
-
-```ts
-config.collections = [
-  ...(config.collections || []),
-  // Add additional collections here
-]
-```
-
-First we spread the `config.collections` to ensure that we don’t lose the existing collections, then you can add any additional collections just as you would in a regular payload config.
-
-This same logic is applied to other properties like admin, hooks, globals:
+So a public blog keeps working if the collection says so explicitly:
 
 ```ts
-config.globals = [
-  ...(config.globals || []),
-  // Add additional globals here
-]
-
-config.hooks = {
-  ...(incomingConfig.hooks || {}),
-  // Add additional hooks here
+{
+  slug: 'posts',
+  access: {
+    read: () => true,
+  },
 }
 ```
 
-Some properties will be slightly different to extend, for instance the onInit property:
+Customers or members who sign up on your frontend should live in their **own** auth collection. They are never matched against roles, and they only get the access you define on each collection.
+
+The mapping between Payload operations and permissions:
+
+| Payload access  | Permission |
+| --------------- | ---------- |
+| `create`        | `create`   |
+| `read`          | `read`     |
+| `update`        | `update`   |
+| `delete`        | `delete`   |
+| `readVersions`  | `read`     |
+| `unlock`        | `update`   |
+
+On the users collection:
+
+- `access.admin` requires at least one role, so users without roles cannot open the panel.
+- With `allowSelfManagement` (enabled by default), every user can read and update their own document, but they can only change their own roles if they have `users.update`.
+
+Role changes take effect on the next request. Roles are not stored in the JWT, so nobody has to log in again.
+
+## Options
 
 ```ts
-import { onInitExtension } from './onInitExtension' // example file
-
-config.onInit = async (payload) => {
-  if (incomingConfig.onInit) await incomingConfig.onInit(payload)
-  // Add additional onInit code by defining an onInitExtension function
-  onInitExtension(pluginOptions, payload)
-}
-```
-
-If you wish to add to the onInit, you must include the **async/await**. We don’t use spread syntax in this case, instead you must await the existing `onInit` before running additional functionality.
-
-In the template, we have stubbed out some addition `onInit` actions that seeds in a document to the `plugin-collection`, you can use this as a base point to add more actions - and if not needed, feel free to delete it.
-
-##### Types.ts
-
-If your plugin has options, you should define and provide types for these options.
-
-```ts
-export type MyPluginConfig = {
-  /**
-   * List of collections to add a custom field
-   */
-  collections?: Partial<Record<CollectionSlug, true>>
-  /**
-   * Disable the plugin
-   */
-  disabled?: boolean
-}
-```
-
-If possible, include JSDoc comments to describe the options and their types. This allows a developer to see details about the options in their editor.
-
-##### Testing
-
-Having a test suite for your plugin is essential to ensure quality and stability. **Vitest** is a fast, modern testing framework that works seamlessly with Vite and supports TypeScript out of the box.
-
-Vitest organizes tests into test suites and cases, similar to other testing frameworks. We recommend creating individual tests based on the expected behavior of your plugin from start to finish.
-
-Writing tests with Vitest is very straightforward, and you can learn more about how it works in the [Vitest documentation.](https://vitest.dev/)
-
-For this template, we stubbed out `int.spec.ts` in the `dev` folder where you can write your tests.
-
-```ts
-describe('Plugin tests', () => {
-  // Create tests to ensure expected behavior from the plugin
-  it('some condition that must be met', () => {
-   // Write your test logic here
-   expect(...)
-  })
+rbac({
+  collections: ['posts', 'media'],
+  excludeCollections: ['audit-logs'],
+  globals: true,
+  excludeGlobals: ['header'],
+  usersCollection: 'users',
+  rolesSlug: 'roles',
+  superAdminRoleName: 'Super Admin',
+  allowSelfManagement: true,
+  composeWithOriginalAccess: false,
+  disabled: false,
 })
 ```
 
-## Best practices
+| Option                      | Type                    | Default                        | Description                                                                                                                                                         |
+| --------------------------- | ----------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `collections`               | `CollectionSlug[]`      | all collections                | Only govern these collections. The roles and users collections are always included.                                                                                |
+| `excludeCollections`        | `CollectionSlug[]`      | `[]`                           | Collections to leave untouched. They keep their own access functions.                                                                                               |
+| `globals`                   | `boolean \| GlobalSlug[]` | `true`                       | `true` governs every global, `false` governs none, and an array governs only those globals.                                                                        |
+| `excludeGlobals`            | `GlobalSlug[]`          | `[]`                           | Globals to leave untouched.                                                                                                                                         |
+| `usersCollection`           | `CollectionSlug`        | `config.admin.user` or `users` | The auth collection that holds admin users. It is created if it does not exist.                                                                                    |
+| `rolesSlug`                 | `string`                | `roles`                        | Slug of the roles collection.                                                                                                                                       |
+| `superAdminRoleName`        | `string`                | `Super Admin`                  | Name given to the Super Admin role when it is created.                                                                                                              |
+| `allowSelfManagement`       | `boolean`               | `true`                         | Lets every user read and update their own user document.                                                                                                            |
+| `composeWithOriginalAccess` | `boolean`               | `false`                        | When `true`, a role grant is combined (AND) with the collection's own access function. Use this to keep row-level rules such as "only your own posts" for governed users. |
+| `disabled`                  | `boolean`               | `false`                        | Keeps the roles collection and fields, so the schema stays stable, but stops enforcing permissions.                                                                 |
 
-With this tutorial and the plugin template, you should have everything you need to start building your own plugin.
-In addition to the setup, here are other best practices aim we follow:
+Payload internal collections (`payload-*`) are never governed.
 
-- **Providing an enable / disable option:** For a better user experience, provide a way to disable the plugin without uninstalling it. This is especially important if your plugin adds additional webpack aliases, this will allow you to still let the webpack run to prevent errors.
-- **Include tests in your GitHub CI workflow**: If you’ve configured tests for your package, integrate them into your workflow to run the tests each time you commit to the plugin repository. Learn more about [how to configure tests into your GitHub CI workflow.](https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs)
-- **Publish your finished plugin to NPM**: The best way to share and allow others to use your plugin once it is complete is to publish an NPM package. This process is straightforward and well documented, find out more [creating and publishing a NPM package here.](https://docs.npmjs.com/creating-and-publishing-scoped-public-packages/).
-- **Add payload-plugin topic tag**: Apply the tag **payload-plugin **to your GitHub repository. This will boost the visibility of your plugin and ensure it gets listed with [existing payload plugins](https://github.com/topics/payload-plugin).
-- **Use [Semantic Versioning](https://semver.org/) (SemVar)** - With the SemVar system you release version numbers that reflect the nature of changes (major, minor, patch). Ensure all major versions reference their Payload compatibility.
+## Migrations
 
-# Questions
+**MongoDB** needs no migration.
 
-Please contact [Payload](mailto:dev@payloadcms.com) with any questions about using this plugin template.
+**Postgres and SQLite** need **one** migration after installing the plugin. It creates the `roles` table and the users-to-roles relationship:
+
+```bash
+pnpm payload migrate:create add-rbac
+pnpm payload migrate
+```
+
+Adding, renaming or removing collections later never needs an RBAC migration, because permissions live in a single JSON column. In development, `push` mode handles the schema automatically.
+
+## Adding RBAC to an existing project
+
+If users already exist, nobody would go through the "create first user" flow. To prevent a lock-out, the plugin checks on startup. If no user holds the Super Admin role, it creates the role, assigns it to the **oldest** user (by `createdAt`) and logs a warning.
+
+To do this explicitly as part of a migration instead, call `seedRbac`:
+
+```ts
+import type { MigrateUpArgs } from '@payloadcms/db-postgres'
+import { seedRbac } from '@crz-studio/payload-rbac'
+
+export async function up({ payload, req }: MigrateUpArgs): Promise<void> {
+  await seedRbac({ payload, req })
+}
+```
+
+`seedRbac` is idempotent and returns `{ promotedUserId, superAdminRoleId }`.
+
+## Using permissions in your own code
+
+```ts
+import { getPermissions, hasPermission, isSuperAdmin } from '@crz-studio/payload-rbac'
+
+export const publishEndpoint: Endpoint = {
+  path: '/publish',
+  method: 'post',
+  handler: async (req) => {
+    if (!(await hasPermission(req, 'posts', 'update'))) {
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    return Response.json({ ok: true })
+  },
+}
+```
+
+| Helper                                                   | Returns                                                               |
+| -------------------------------------------------------- | --------------------------------------------------------------------- |
+| `hasPermission(req, slug, operation, type?)`             | `true` for Super Admins, or when a role grants the operation. `type` is `'collections'` (default) or `'globals'`. |
+| `isSuperAdmin(req)`                                      | Whether the current user holds the Super Admin role.                  |
+| `getPermissions(req)`                                    | `{ isSuperAdmin, hasRoles, grants }` with the merged matrix.           |
+
+Results are cached per request, so calling the helpers repeatedly is cheap.
+
+### Bypassing the plugin's guards
+
+Seed scripts and trusted server code can skip the escalation and Super Admin guards by passing `context: { rbacBypass: true }`:
+
+```ts
+await payload.update({
+  collection: 'users',
+  id,
+  data: { roles: [roleId] },
+  context: { rbacBypass: true },
+})
+```
+
+## Security notes
+
+- **The Local API skips access control by default.** `payload.find()` and similar calls run with `overrideAccess: true` unless you pass `overrideAccess: false` and a `user`. Use the helpers above in custom code.
+- **Roles replace a collection's own access for governed users.** Row-level rules in your access functions (for example `{ author: { equals: req.user.id } }`) are ignored for admin users unless you enable `composeWithOriginalAccess`.
+- **Privilege escalation is blocked.**
+  - A user can only assign or remove roles whose permissions they already hold.
+  - A user can only grant or revoke role permissions they already hold.
+  - Only Super Admins can assign the Super Admin role, or modify or delete a Super Admin user.
+- **The Super Admin role is protected.** It cannot be deleted, its permissions cannot be edited, and a second one cannot be created through the API.
+- **The last Super Admin is protected.** They cannot be deleted or lose the role.
+- **Field-level permissions are not part of v1.** Permissions are per collection or global, per operation.
+
+## Contributing and releases
+
+```bash
+pnpm install
+cp dev/.env.example dev/.env
+pnpm dev
+```
+
+Set `DATABASE_ADAPTER` to `mongodb` (default), `postgres` or `sqlite` in `dev/.env`. For Postgres, `DATABASE_URL` is the connection string.
+
+| Script                 | Purpose                                                         |
+| ---------------------- | --------------------------------------------------------------- |
+| `pnpm dev`             | Runs the dev Payload app on http://localhost:3000.              |
+| `pnpm test:int`        | Integration tests on MongoDB (in-memory).                       |
+| `pnpm test:int:sqlite` | Integration tests on SQLite (in-memory).                        |
+| `pnpm test:int:postgres` | Integration tests on Postgres. Needs `DATABASE_URL`. Each run uses a throwaway schema that is dropped afterwards. |
+| `pnpm test:e2e`        | Playwright tests for the admin UI.                              |
+| `pnpm lint`            | ESLint.                                                         |
+| `pnpm typecheck`       | TypeScript on the plugin and the dev app.                       |
+| `pnpm check:comments`  | Fails when code comments are found. This project has none by design. |
+| `pnpm build`           | Builds `dist`.                                                  |
+
+### Branches and versioning
+
+- Work happens on `dev`. `main` holds released code.
+- Commits follow [Conventional Commits](https://www.conventionalcommits.org). PR titles are checked by CI.
+- Merging `dev` into `main` runs CI and then [semantic-release](https://semantic-release.gitbook.io). It reads the commits since the last tag and applies [SemVer](https://semver.org):
+
+  | Commit                                               | Release |
+  | ---------------------------------------------------- | ------- |
+  | `fix: ...`                                           | patch   |
+  | `feat: ...`                                          | minor   |
+  | `feat!: ...` or a `BREAKING CHANGE:` footer          | major   |
+  | `docs:`, `chore:`, `test:`, `refactor:`, `ci:`       | none    |
+
+  It then tags `vX.Y.Z`, publishes to npm with provenance, and creates a GitHub Release with generated notes.
+- Use a **merge commit** (not squash) when merging `dev` into `main`, so every conventional commit from `dev` is analyzed.
+- The version in `package.json` stays `0.0.0-semantically-released`. The real version lives in git tags, npm and GitHub Releases, so `main` never gets ahead of `dev`.
+
+### One-time repository setup
+
+1. Create the `crz-studio` npm organization, or make sure you can publish under it.
+2. Add an npm **automation** token as the `NPM_TOKEN` repository secret.
+3. Allow GitHub Actions to create releases (Settings → Actions → Workflow permissions → Read and write).
+
+## License
+
+MIT

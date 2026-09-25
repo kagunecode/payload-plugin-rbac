@@ -1,8 +1,5 @@
 import type { EmailAdapter, SendEmailOptions } from 'payload'
 
-/**
- * Logs all emails to stdout
- */
 export const testEmailAdapter: EmailAdapter<void> = ({ payload }) => ({
   name: 'test-email-adapter',
   defaultFromAddress: 'dev@payloadcms.com',

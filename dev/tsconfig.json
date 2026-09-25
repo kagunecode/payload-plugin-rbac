@@ -19,14 +19,11 @@
       "@payload-config": [
         "./payload.config.ts"
       ],
-      "rbac": [
+      "@crz-studio/payload-rbac": [
         "../src/index.ts"
       ],
-      "rbac/client": [
+      "@crz-studio/payload-rbac/client": [
         "../src/exports/client.ts"
-      ],
-      "rbac/rsc": [
-        "../src/exports/rsc.ts"
       ]
     },
     "noEmit": true,
