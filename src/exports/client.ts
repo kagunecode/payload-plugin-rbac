@@ -1,1 +1,1 @@
-export { BeforeDashboardClient } from '../components/BeforeDashboardClient.js'
+export { PermissionsMatrix } from '../components/PermissionsMatrix/index.js'
