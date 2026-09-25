@@ -11,13 +11,13 @@
     "permissions",
     "access-control"
   ],
-  "homepage": "https://github.com/crz-studio/payload-rbac#readme",
+  "homepage": "https://github.com/kagunecode/payload-plugin-rbac#readme",
   "bugs": {
-    "url": "https://github.com/crz-studio/payload-rbac/issues"
+    "url": "https://github.com/kagunecode/payload-plugin-rbac/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/crz-studio/payload-rbac.git"
+    "url": "git+https://github.com/kagunecode/payload-plugin-rbac.git"
   },
   "license": "MIT",
   "author": "CRZ Studio",
